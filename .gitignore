@@ -1,0 +1,23 @@
+/venv
+..gitignore.kate-swp
+.idea
+/tmp
+/logs
+
+**__pycache__**
+.idea
+**/.env*
+**/*.pyc
+
+.pyc
+
+**/Dockerfile
+env_file/.env.dev_local
+.DS_Store
+.docx
+.xlsm
+.xlsx
+images/
+New Layout/
+weekly_report_env/
+.env
