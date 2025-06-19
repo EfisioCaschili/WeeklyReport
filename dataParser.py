@@ -176,12 +176,12 @@ class ParsingData():
         #print(output)
         return output
     
-    def chart_weekly_discrepancies_data(self,sim_util:dict):
+    def   chart_weekly_discrepancies_data(self,sim_util:dict):
         discrepancies=self.issues_a_b_c_d_na()
-        sim_fam={'FMS':0,'PTT':0,'ULTD':0,}#'SBT':0,'CBT':0} #SBT and CBT excluded just to compare the number of discrepancies with the number of scheduled sessions
+        sim_fam={'FMS':0,'PTT':0,'ULTD':0}#,'SBT':0,'CBT':0} #SBT and CBT excluded just to compare the number of discrepancies with the number of scheduled sessions
         sim_util_fam={'FMS':0,
                       'PTT':0,
-                      'ULTD':0,
+                      'ULTD':0
                       }
         for days in list(sim_util.keys()):
             sim_util_fam['FMS']+=sim_util[days][0][0]+sim_util[days][1][0]
@@ -191,7 +191,7 @@ class ParsingData():
         #The formula to calculate the normalized discrepancies for every family sim is:
         # [Total_Discr/Total_Sess]/[Family_Sim_Discr/Family_Sim_Sess]
         
-        total_discr=len(discrepancies['FMS']) + len(discrepancies['PTT']) + len(discrepancies['ULTD'])
+        total_discr=len(discrepancies['FMS']) + len(discrepancies['PTT']) + len(discrepancies['ULTD']) 
         total_sess=sim_util_fam['FMS']+sim_util_fam['PTT']+sim_util_fam['ULTD']
         
         for fam in sim_fam.keys():
@@ -234,7 +234,11 @@ class ParsingData():
         data, discrepancies = self.chart_weekly_discrepancies_data(sim_util)
         #data to plot
         labels = list(data.keys())
+        labels.append('SBT')
+        labels.append('CBT')
         values_discr_perc = list(data.values())
+        values_discr_perc.append(0)
+        values_discr_perc.append(0)
         total=sum(values_discr_perc)
         values_discr_perc = [(x/total)*100 for x in values_discr_perc]
         
@@ -245,29 +249,31 @@ class ParsingData():
         fig, ax1 = plt.subplots(figsize=(18, 15))
 
         # Primo asse (sinistra, percentuali)
-        bars1=ax1.bar(x, values_discr_perc, width=bar_width, color="#1676D1", label="Normalized Issue Rate %", alpha=0.6, zorder=0)
+        bars1=ax1.bar(x, values_discr_perc, width=bar_width, color="#1676D1", label="Normalized Issue Rate %", alpha=0.2, zorder=0)
         ax1.set_ylabel("Normalized Issue Rate %", fontsize=16)
         #ax1.set_ylim(0, max(values_discr_perc)*1.2)
         #ax1.set_yticks(np.linspace(0, max(values_discr_perc)*1.2 + 1, 10))
         ax1.set_ylim(0, 100)
-        ax1.set_yticks(np.linspace(0, 100, 10))
-        ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x)}%"))
+        #ax1.set_yticks(np.linspace(0, 100, 10))
+        ax1.set_yticks(range(0, 101, 10))
+        ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x)}%" ))
         ax1.tick_params(axis='y', labelsize=16)
         ax1.grid(True, axis='y', linestyle='--', alpha=0.5, zorder=0)
 
         # Secondo asse (destra, valori assoluti)
         ax2 = ax1.twinx()
-        bars2=ax2.bar(x, values_discr_abs, width=bar_width/2, color="#2E3E6B96", label="Issues", alpha=0.8, zorder=3)
+        bars2=ax2.bar(x, values_discr_abs, width=bar_width/2, color="#2E3E6B96", label="Issues", alpha=1, zorder=3)
         ax2.set_ylabel("Issues", fontsize=16)
-        ax2.set_ylim(0, max(values_discr_abs)*1.2)
+        ax2.set_ylim(0, max(values_discr_abs)*1.8)
         ax2.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x)}"))
         ax2.tick_params(axis='y', labelsize=16)
 
         # Valori sopra le barre percentuali
         for bar in bars1:
             height = bar.get_height()
-            ax1.text(bar.get_x() + bar.get_width()*0.1, height + 1,
-                    f"{height:.1f}%", ha='center', va='bottom', fontsize=16)
+            if height > 0:
+                ax1.text(bar.get_x() + bar.get_width()*0.1, height + 1,
+                        f"{height:.1f}%", ha='center', va='bottom', fontsize=16)
         # Valori sopra le barre assolute
         for bar in bars2:
             height = bar.get_height()
