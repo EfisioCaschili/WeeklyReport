@@ -33,10 +33,10 @@ except:
 
 #START DOWNLOADING DOCUMENTS FROM SHAREPOINT
 data_container=Data()
-data_container.download_from_sharepoint(site_url_path,logbooksh_url_path,local_path+"Record of SH Duty Exercise and Times Log_Total.xlsm",username,password)
+data_container.download_from_sharepoint(site_url_path,logbooksh_url_path,local_path+"Record of SH Duty Exercise and Times Log_Total.xlsm",client_id,shared_secret,tenant_id)
 #data_container.download_from_sharepoint(site_url_path,limitation_url_path,local_path+"Limitation Logbook.xlsm",username,password)
-data_container.download_from_sharepoint(site_url_path,rtmslog_url_path,local_path+"RTMS_LOGBOOK_V1.xlsx",username,password)
-data_container.download_from_sharepoint(site_url_path,dailylog_url_path,local_path+"LogBookEventIssue.xlsm",username,password)
+data_container.download_from_sharepoint(site_url_path,rtmslog_url_path,local_path+"RTMS_LOGBOOK_V1.xlsx",client_id,shared_secret,tenant_id)
+data_container.download_from_sharepoint(site_url_path,dailylog_url_path,local_path+"LogBookEventIssue.xlsm",client_id,shared_secret,tenant_id)
 #STOP DOWNLOADING DOCUMENTS FROM SHAREPOINT""
 
 #START TO READ THE DOCUMENTS
@@ -206,4 +206,5 @@ def main__():
 
 
 if __name__=='__main__':
+
     main__() 
