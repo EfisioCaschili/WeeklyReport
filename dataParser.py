@@ -5,9 +5,11 @@ from docx.shared import Inches
 import io
 from report import *
 import numpy as np
+import requests
+from urllib.parse import urlparse
 
 class Data():
-    def download_from_sharepoint(self,site_url,file_url,new_filename,username,password):
+    def download_from_sharepoint_old(self,site_url,file_url,new_filename,username,password):
         from office365.runtime.auth.authentication_context import AuthenticationContext
         from office365.sharepoint.client_context import ClientContext
         from office365.sharepoint.files.file import File    
@@ -22,6 +24,81 @@ class Data():
                 )
             print("[Ok] file has been downloaded into: {0}".format(new_filename))    
     
+    def get_access_token(self,clientID, clientSecret, tenantID):
+        """
+        Ottiene un token App-Only Azure AD v2 per Microsoft Graph
+        """
+        token_url = f"https://login.microsoftonline.com/{tenantID}/oauth2/v2.0/token"
+        data = {
+            "client_id": clientID,
+            "client_secret": clientSecret,
+            "scope": "https://graph.microsoft.com/.default",
+            "grant_type": "client_credentials"
+        }
+        r = requests.post(token_url, data=data)
+        r.raise_for_status()
+        return r.json()["access_token"]
+
+    def get_site_id(self,site_url, access_token):
+        """
+        Recupera il site_id da Microsoft Graph dato l'URL del sito
+        """
+        parsed = urlparse(site_url)
+        hostname = parsed.netloc
+        path = parsed.path.strip("/")  # es. 'sites/GBTS'
+        graph_url = f"https://graph.microsoft.com/v1.0/sites/{hostname}:/{path}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        r = requests.get(graph_url, headers=headers)
+        r.raise_for_status()
+        return r.json()["id"]
+
+    def download_from_sharepoint(self, site_url, file_path, new_filename, clientID, clientSecret, tenantID):
+        """
+        Scarica un file da SharePoint Online via Microsoft Graph API. clientSecret scade il 20/10/2027
+        """
+        try:
+            # 1️⃣ Ottieni token
+            access_token = self.get_access_token(clientID, clientSecret, tenantID)
+            print("Token successfully obtained")
+
+            # 2️⃣ Recupera site_id
+            site_id = self.get_site_id(site_url, access_token)
+            #print(f"Site ID obtained: {site_id}")
+
+            # 3️⃣ Recupera tutti i drive del sito
+            drives_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives"
+            headers = {"Authorization": f"Bearer {access_token}"}
+            drives_response = requests.get(drives_url, headers=headers)
+            drives_response.raise_for_status()
+            drives = drives_response.json()["value"]
+
+            # 4️⃣ Trova il drive "Documents"
+            documents_drive = next((d for d in drives if d["name"] == "Documents"), None)
+            if not documents_drive:
+                raise Exception("Drive 'Documents' not found in the site.")
+
+            drive_id = documents_drive["id"]
+            #print(f"Drive ID trovato: {drive_id}")
+
+            # 5️⃣ URL di download del file
+            graph_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{file_path}:/content"
+            #print(f"📥 Download da: {graph_url}")
+
+            r = requests.get(graph_url, headers=headers, stream=True)
+            #print(f"➡️ Status code: {r.status_code}")
+
+            if r.status_code == 200:
+                with open(new_filename, "wb") as f:
+                    f.write(r.content)
+                print(f"File downloaded: {new_filename}")
+            else:
+                print(f"Error {r.status_code}: {r.text[:300]}")
+
+        except requests.HTTPError as e:
+            print(f"HTTP Error: {e.response.status_code} {e.response.text}")
+        except Exception as e:
+            print(f"Error: {e}")
+
     def load_file(self, path: str, sheet: str):
         """Load data from an Excel file."""
         try:
@@ -87,7 +164,8 @@ class ParsingData():
                 training=output[str(date)]
                 for x in training:
                     pos=devices.index(x[0])
-                    if x[1] !='RSLD' and x[1] !='ERR':
+                    #if x[1] !='RSLD' and x[1] !='ERR':
+                    if x[1] !='ERR':
                         tmp[pos][0]=tmp[pos][0]+1
                     if x[1] =='DCO' or x[1] =='SDC':
                         tmp[pos][1]=tmp[pos][1]+1
@@ -103,9 +181,11 @@ class ParsingData():
             if row['Date'].date() in get_dates_in_week(year=self.year,week=self.week):
                 family_sim=''.join([c for c in str(row['Device']) if c.isalpha()])
                 sbt_family=('AllSBTs','SBT Room1','SBT Room2','SBTRoom')
-                cbt_family=('CBT Room1','CBT Room2')
+                cbt_family=('CBTRoom','CBT Room1','CBT Room2')
+                LVC_RTMS_family=('LVC','RTMS','SHELTER')
                 if family_sim in sbt_family: family_sim='SBT'
                 elif family_sim in cbt_family: family_sim='CBT'
+                elif family_sim in LVC_RTMS_family: family_sim='MPDS'
                 output[family_sim].append((
                     str(row['ID']), 
                     str(row['Device']),
@@ -251,11 +331,14 @@ class ParsingData():
         # Primo asse (sinistra, percentuali)
         bars1=ax1.bar(x, values_discr_perc, width=bar_width, color="#1676D1", label="Normalized Issue Rate %", alpha=0.2, zorder=0)
         ax1.set_ylabel("Normalized Issue Rate %", fontsize=16)
-        #ax1.set_ylim(0, max(values_discr_perc)*1.2)
+        max_val = max(values_discr_perc)
+        ylim_max = math.ceil(max_val / 10) * 10
+        ax1.set_ylim(0, ylim_max)
         #ax1.set_yticks(np.linspace(0, max(values_discr_perc)*1.2 + 1, 10))
-        ax1.set_ylim(0, 100)
+        #ax1.set_ylim(0, 100)
         #ax1.set_yticks(np.linspace(0, 100, 10))
-        ax1.set_yticks(range(0, 101, 10))
+        #ax1.set_yticks(range(0, 101, 10))
+        ax1.set_yticks(range(0, ylim_max + 1, 10))
         ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x)}%" ))
         ax1.tick_params(axis='y', labelsize=16)
         ax1.grid(True, axis='y', linestyle='--', alpha=0.5, zorder=0)
@@ -406,7 +489,7 @@ class ParsingData():
         group_bar_width = bar_width  / 5
         offsets = np.linspace(-group_bar_width*2, group_bar_width*2, 5)
         plt.figure(figsize=(18, 15))
-        plt.bar(x, total, color="#9DC3E6", label="Total", alpha=0.4,zorder=0, width=bar_width)
+        plt.bar(x, total, color="#B9CDE5", label="Total", alpha=0.4,zorder=0, width=bar_width)
         plt.bar(x, DNCO, bottom=total, color="#FF0000", label="DNCO",alpha=0.6, zorder=0, width=bar_width)
         max_y=int(max(total[i]+DNCO[i] for i in range(5))/2)*2 +2
         plt.ylim(0,max_y)
@@ -428,11 +511,11 @@ class ParsingData():
                 plt.text(x[i], total[i] + DNCO[i]/2, str(DNCO[i]), ha='center', va='center', fontsize=16, color='black')# label inside DNCO 
 
         # Disegna le barre A–N/A in primo piano (sopra le stacked)
-        plt.bar(x + offsets[0], A, width=group_bar_width, color="#A95720", label='A', zorder=2)
-        plt.bar(x + offsets[1], B, width=group_bar_width, color="#C46627", label='B', zorder=2)
-        plt.bar(x + offsets[2], C, width=group_bar_width, color="#ED7D31", label='C', zorder=2)
+        plt.bar(x + offsets[0], A, width=group_bar_width, color="#792916", label='A', zorder=2)
+        plt.bar(x + offsets[1], B, width=group_bar_width, color="#8A3C15", label='B', zorder=2)
+        plt.bar(x + offsets[2], C, width=group_bar_width, color="#EE6307", label='C', zorder=2)
         plt.bar(x + offsets[3], D, width=group_bar_width, color="#F09E7A", label='D', zorder=2)
-        plt.bar(x + offsets[4], NA, width=group_bar_width, color="#D6D6D6", label='N/A', zorder=2) #gray
+        plt.bar(x + offsets[4], NA, width=group_bar_width, color="#78909C", label='N/A', zorder=2) #gray
 
         # Aggiungi etichette e legenda
         
